@@ -5,9 +5,10 @@ export const FRAMES = [
   // { id: "classic", name: "Classic", src: "/frames/classic.svg" },
   // { id: "polaroid", name: "Polaroid", src: "/frames/polaroid.svg" },
   // { id: "party", name: "Party", src: "/frames/party.svg" },
-  { id: "party", name: "Let's Party", src: "/frames/Frame 1.png" },
-  { id: "elegant", name: "Ready!", src: "/frames/Frame 2.png" },
+  { id: "party", name: "Party party", src: "/frames/Frame 1.png" },
+  { id: "ready", name: "Pernah ga ready?", src: "/frames/Frame 2.png" },
   { id: "retro", name: "Retro", src: "/frames/Frame 3.png" },
+  { id: "pemecut", name: "Pengendali eiay", src: "/frames/Frame 5.png" },
 ] as const;
 
 export function isFrameId(value: string): value is (typeof FRAMES)[number]["id"] {
