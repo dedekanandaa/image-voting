@@ -1,0 +1,132 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  COMMITTEE
+  ADMIN
+}
+
+enum CampaignStatus {
+  DRAFT
+  SUBMISSION_OPEN
+  SUBMISSION_CLOSED
+  VOTING_OPEN
+  VOTING_CLOSED
+  PUBLISHED
+  ARCHIVED
+}
+
+enum SubmissionStatus {
+  DRAFT
+  SUBMITTED
+  REJECTED
+  SELECTED
+}
+
+enum AuditAction {
+  SUBMISSION_UPLOAD
+  SUBMISSION_DELETE
+  IMAGE_SELECTED
+  IMAGE_DESELECTED
+  VOTE_CAST
+  VOTE_REVOKED
+  CAMPAIGN_CREATED
+  CAMPAIGN_UPDATED
+}
+
+model User {
+  id String @id @default(cuid())
+  keycloakId String @unique
+  email String @unique
+  displayName String?
+  roles Role[] @default([USER])
+  submissions Submission[]
+  votes Vote[]
+  auditLogs AuditLog[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Campaign {
+  id String @id @default(cuid())
+  name String
+  description String?
+  submissionStartAt DateTime
+  submissionEndAt DateTime
+  votingStartAt DateTime
+  votingEndAt DateTime
+  status CampaignStatus @default(DRAFT)
+  submissions Submission[]
+  votes Vote[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Submission {
+  id String @id @default(cuid())
+  campaignId String
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  frameId String?
+  title String? // user-provided submission title; null to use fileName without ext
+  status SubmissionStatus @default(SUBMITTED)
+  imageKey String
+  imageHash String
+  fileName String
+  fileSize Int
+  mimeType String
+  isSelected Boolean @default(false)
+  selectedAt DateTime?
+  selectedBy String?
+  votes Vote[]
+  auditLogs AuditLog[]
+  deletedAt DateTime?
+  deletedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([campaignId])
+  @@index([userId])
+}
+
+model Vote {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaignId String
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  submissionId String
+  submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  rank Int
+  votedAt DateTime @default(now())
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([userId, submissionId])
+  @@unique([userId, campaignId, rank])
+  @@index([campaignId, rank])
+}
+
+model AuditLog {
+  id String @id @default(cuid())
+  actorId String
+  actor User @relation(fields: [actorId], references: [id])
+  action AuditAction
+  resourceType String
+  resourceId String
+  oldValue Json?
+  newValue Json?
+  ipAddress String?
+  userAgent String?
+  submissionId String?
+  submission Submission? @relation(fields: [submissionId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  @@index([resourceType, resourceId])
+}
