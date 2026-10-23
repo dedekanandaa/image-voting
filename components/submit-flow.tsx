@@ -88,6 +88,17 @@ export function SubmitFlow({
   useEffect(() => { draw(); }, [draw, step]);
 
   useEffect(() => {
+    if (step !== "preview" || !canvasRef.current) return;
+    canvasRef.current.toBlob((blob) => {
+      if (!blob) return;
+      setPreview((current) => {
+        if (current) URL.revokeObjectURL(current.url);
+        return { blob, url: URL.createObjectURL(blob) };
+      });
+    }, "image/jpeg", 0.9);
+  }, [draw, step]);
+
+  useEffect(() => {
     const image = new Image();
     image.src = FRAMES.find((item) => item.id === frameId)!.src;
     image.decode().then(() => setFrame(image)).catch(() => setError("This frame could not be loaded."));
@@ -259,7 +270,7 @@ export function SubmitFlow({
               </div>
             </div>
 
-            <div className="sticky bottom-0 -mx-4 mt-6 border-t border-rose-100 bg-white/95 p-4 backdrop-blur md:static md:mx-0 md:mt-0 md:border-0 md:bg-transparent md:p-0 text-sm">
+            <div className="-mx-4 mt-6 border-t border-rose-100 bg-white/95 p-4 backdrop-blur md:mx-0 md:mt-0 md:border-0 md:bg-transparent md:p-0 text-sm">
               <button onClick={makePreview} disabled={!photo || !frame} className={primaryButton}>Preview photo</button>
               {error && <p role="alert" className="mt-3 text-center text-sm text-red-600">{error}</p>}
             </div>
@@ -276,8 +287,27 @@ export function SubmitFlow({
               <div key={step === "done" ? "done" : "preview"} className="motion-safe:animate-scale-in">
                 <div className="flex flex-col items-center text-center md:gap-8">
                   <div className="max-w-[200px] sm:max-w-xs">
-                    {preview && <img src={preview.url} alt="Your submitted photo" className="aspect-[3/4] w-full rounded-[1.5rem] object-cover shadow-lg" />}
+                    {step === "preview" ? (
+                      <canvas ref={canvasRef} width={FRAME_WIDTH} height={FRAME_HEIGHT} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} aria-label="Photo preview" className="aspect-[3/4] w-full touch-none rounded-[1.5rem] bg-white shadow-lg" />
+                    ) : preview && <img src={preview.url} alt="Your submitted photo" className="aspect-[3/4] w-full rounded-[1.5rem] object-cover shadow-lg" />}
                   </div>
+                  {step === "preview" && (
+                    <div className="w-full max-w-sm space-y-4">
+                      <div>
+                        <div className="mb-2 flex items-center justify-between">
+                          <label htmlFor="preview-zoom" className="text-xs font-bold text-slate-700">Zoom</label>
+                          <span className="text-xs text-slate-500">{Math.round(zoom * 100)}%</span>
+                        </div>
+                        <input id="preview-zoom" type="range" min="0.5" max="2" step="0.005" value={zoom} onChange={(event) => setZoom(Number(event.target.value))} className="w-full accent-rose-500" />
+                      </div>
+                      <div>
+                        <p className="mb-2 text-xs font-bold text-slate-700">Frame</p>
+                        <div className="flex gap-3 overflow-x-auto px-2 pb-2">
+                          {FRAMES.map((item) => <button key={item.id} onClick={() => setFrameId(item.id)} aria-pressed={frameId === item.id} className={`w-20 shrink-0 rounded-lg border-2 bg-white p-1 transition ${frameId === item.id ? "border-rose-500" : "border-transparent hover:border-rose-200"}`}><img src={item.src} alt="" className="mx-auto block h-16 w-12 rounded bg-slate-100 object-contain sm:h-20 sm:w-16" /><span className="mt-1 block text-center text-xs font-bold leading-tight">{item.name}</span></button>)}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   {step === "done" ? (
                     <div className="mt-4 sm:mt-6 md:mt-0">
                       <span className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-3xl text-emerald-600">✓</span>
