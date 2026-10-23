@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import useEmblaCarousel from "embla-carousel-react";
 import { Confetti } from "@/components/confetti";
 
 type Campaign = { id: string; name: string };
 type Submission = { id: string; title: string; imageUrl: string; isOwn?: boolean };
+type UserVote = { id: string; title: string; imageUrl: string; rank: number };
 
 const MAX_SELECTIONS = 5;
 
@@ -19,16 +20,18 @@ export function Ballot() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [userVotes, setUserVotes] = useState<UserVote[]>([]);
 
   useEffect(() => {
     fetch("/api/votes").then(async (response) => {
       if (!response.ok) throw new Error((await response.json()).error || "Unable to load ballot");
       return response.json();
-    }).then((data: { campaign: Campaign | null; submissions: Submission[]; hasVoted?: boolean }) => {
+    }).then((data: { campaign: Campaign | null; submissions: Submission[]; hasVoted?: boolean; userVotes?: UserVote[] }) => {
       setCampaign(data.campaign);
       setSubmissions(data.submissions);
       if (data.hasVoted) {
         setSubmitted(true);
+        setUserVotes(data.userVotes ?? []);
         setMessage("You have already voted.");
       }
     }).catch((error) => setMessage(error.message)).finally(() => setLoading(false));
@@ -83,6 +86,34 @@ export function Ballot() {
       <p className="mt-3 max-w-xl text-sm leading-6 text-slate-600">Select exactly 5 photos you love most.</p>
       {loading && !campaign && <p className="mt-10 text-sm text-slate-500">Preparing your ballot…</p>}
       {!loading && !submissions.length && <div className="mt-10 rounded-2xl bg-white p-8 text-center text-slate-500 shadow-sm">No finalists are ready yet.</div>}
+
+      {submitted && userVotes.length > 0 && (
+        <section className="mt-6 rounded-2xl bg-emerald-50 p-4 shadow-sm sm:p-6">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-emerald-700">Your vote ({userVotes.length}/{MAX_SELECTIONS})</h2>
+          <div className="mt-3 flex -mx-2 gap-2 overflow-x-auto px-2 pb-2 sm:-mx-4 sm:gap-3 sm:px-4">
+            {userVotes.map((v) => (
+              <div key={v.id} className="relative shrink-0 rounded-xl shadow-sm">
+                <img src={v.imageUrl} alt={v.title} className="h-24 w-16 rounded-xl object-cover sm:h-32 sm:w-24" />
+                <span className="absolute left-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white shadow">{v.rank}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {!submitted && selected.size > 0 && (
+        <section className="mt-6 rounded-2xl bg-rose-50 p-4 shadow-sm sm:p-6">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-rose-700">Your picks ({selected.size}/{MAX_SELECTIONS})</h2>
+          <div className="mt-3 flex -mx-2 gap-2 overflow-x-auto px-2 pb-2 sm:-mx-4 sm:gap-3 sm:px-4">
+            {submissions.filter((s) => selected.has(s.id)).map((s) => (
+              <button key={s.id} onClick={() => toggleSelection(s.id)} className="group relative shrink-0 rounded-xl shadow-sm transition active:scale-95">
+                <img src={s.imageUrl} alt={s.title} className="h-24 w-16 rounded-xl object-cover sm:h-32 sm:w-24" />
+                <span className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 text-xs font-bold text-white shadow">✕</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       <div className="mt-8 flex items-center justify-between">
         <p className="text-sm font-semibold text-slate-700">{submissions.length} finalists</p>
@@ -149,35 +180,60 @@ export function Ballot() {
   );
 }
 
-// Auto-advancing review of picks. Pauses while the user touches or hovers.
+// Auto-scrolling review of picks. Pauses while the user touches or hovers.
 function ReviewCarousel({ submissions }: { submissions: Submission[] }) {
-  const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true, align: "center" });
+  const containerRef = useRef<HTMLDivElement>(null);
   const [paused, setPaused] = useState(false);
+  const pauseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const resumeScroll = () => {
+    if (pauseTimeoutRef.current) clearTimeout(pauseTimeoutRef.current);
+    pauseTimeoutRef.current = setTimeout(() => {
+      setPaused(false);
+      pauseTimeoutRef.current = null;
+    }, 2000);
+  };
 
   useEffect(() => {
-    if (!emblaApi || paused) return;
-    const timer = setInterval(() => emblaApi.scrollNext(), 2500);
-    return () => clearInterval(timer);
-  }, [emblaApi, paused]);
+    if (paused) return;
+    let frame = 0;
+    const container = containerRef.current;
+    if (!container) return;
+    const halfWidth = container.scrollWidth / 2;
+    const step = () => {
+      // Whole-pixel steps: fractional scrollLeft writes get truncated and stall.
+      container.scrollLeft += 1;
+      if (container.scrollLeft >= halfWidth - 10) container.scrollLeft = 0;
+      frame = requestAnimationFrame(step);
+    };
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [paused]);
 
+  const cards = [...submissions, ...submissions];
   return (
     <div
-      className="px-6 py-6 sm:px-8"
-      onPointerDown={() => setPaused(true)}
-      onPointerUp={() => setPaused(false)}
-      onPointerLeave={() => setPaused(false)}
+      ref={containerRef}
+      className="overflow-x-auto px-6 py-6 sm:px-8"
+      style={{ scrollbarWidth: "none" }}
+      onWheel={() => {
+        setPaused(true);
+        resumeScroll();
+      }}
+      onTouchMove={() => {
+        setPaused(true);
+        resumeScroll();
+      }}
     >
-      <div ref={emblaRef} className="overflow-hidden">
-        <div className="flex -ml-4">
-          {submissions.map((submission) => (
-            <div key={submission.id} className="min-w-0 flex-[0_0_70%] pl-4 sm:flex-[0_0_40%]">
-              <div className="overflow-hidden rounded-2xl bg-rose-50 shadow-md">
-                <img src={submission.imageUrl} alt={submission.title} className="aspect-[3/4] w-full object-cover" />
-                <p className="truncate px-3 py-2 text-sm font-bold text-slate-700 sm:text-base">{submission.title}</p>
-              </div>
+      <div className="flex w-max gap-4">
+        {cards.map((submission, index) => (
+          <div key={`${submission.id}-${index}`} className="w-[70vw] max-w-xs shrink-0 sm:w-72">
+            <div className="overflow-hidden rounded-2xl bg-rose-50 shadow-md">
+              <img src={submission.imageUrl} alt={submission.title} className="aspect-[3/4] w-full object-cover" />
+              <p className="truncate px-3 py-2 text-sm font-bold text-slate-700 sm:text-base">{submission.title}</p>
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
       </div>
     </div>
   );

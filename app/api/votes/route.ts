@@ -17,23 +17,38 @@ export async function GET() {
   try {
     const user = await requireUser();
     const campaign = await getCurrentCampaign();
-    if (campaign?.status !== "VOTING_OPEN") return NextResponse.json({ campaign: null, submissions: [] });
+    if (campaign?.status !== "VOTING_OPEN") return NextResponse.json({ campaign: null, submissions: [], userVotes: [] });
 
     const rows = await prisma.submission.findMany({
       where: { campaignId: campaign.id, isSelected: true, deletedAt: null },
       orderBy: { createdAt: "asc" },
       select: { id: true, imageKey: true, title: true, fileName: true, userId: true },
     });
-    const hasVoted = await prisma.vote.count({
+    const userVotes = await prisma.vote.findMany({
       where: { userId: user.id, campaignId: campaign.id, revokedAt: null },
-    }) > 0;
+      orderBy: { rank: "asc" },
+      select: { submissionId: true, rank: true },
+    });
+    const hasVoted = userVotes.length > 0;
     const submissions = await Promise.all(rows.map(async (submission) => ({
       id: submission.id,
       title: submission.title || submission.fileName.replace(/\.[^.]+$/, ""),
       imageUrl: await getPresignedUrl(submission.imageKey),
       isOwn: submission.userId === user.id,
     })));
-    return NextResponse.json({ campaign: { id: campaign.id, name: campaign.name }, submissions, hasVoted });
+    const userVotesData = await Promise.all(
+      userVotes.map(async (vote) => {
+        const submission = rows.find((r) => r.id === vote.submissionId);
+        if (!submission) return null;
+        return {
+          id: submission.id,
+          title: submission.title || submission.fileName.replace(/\.[^.]+$/, ""),
+          imageUrl: await getPresignedUrl(submission.imageKey),
+          rank: vote.rank,
+        };
+      })
+    );
+    return NextResponse.json({ campaign: { id: campaign.id, name: campaign.name }, submissions, hasVoted, userVotes: userVotesData.filter(Boolean) });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: error.message === "UNAUTHORIZED" ? 401 : 500 });
   }
