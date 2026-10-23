@@ -37,13 +37,12 @@ export default function CommitteeReviewPage() {
     else setMessage((await response.json()).error || "Update failed");
   }
 
-  async function openPhase(status: "SUBMISSION_OPEN" | "VOTING_OPEN") {
-    if (!campaign) return;
+  async function deleteSubmission(submission: Submission) {
+    if (!window.confirm("Delete this submission? This cannot be undone.")) return;
     setMessage("");
-    const response = await fetch(`/api/admin/campaigns/${campaign.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ status }) });
-    if (!response.ok) return setMessage((await response.json()).error || "Phase update failed");
-    setCampaigns((items) => items.map((item) => item.id === campaign.id ? { ...item, status } : item));
-    setMessage(status === "SUBMISSION_OPEN" ? "Submissions are now open." : "Voting is now open.");
+    const response = await fetch(`/api/submissions/${submission.id}`, { method: "DELETE" });
+    if (!response.ok) return setMessage((await response.json()).error || "Delete failed");
+    setSubmissions((items) => items.filter((item) => item.id !== submission.id));
   }
 
   return (
@@ -56,13 +55,6 @@ export default function CommitteeReviewPage() {
           {campaigns.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
         </select>
       </div>
-
-      {campaign && <section className="mt-6 flex flex-col gap-3 rounded-2xl bg-white p-4 shadow-sm sm:flex-row sm:items-center">
-        <div className="flex-1"><p className="text-xs font-bold uppercase tracking-wider text-slate-400">Participant page</p><p className="font-semibold">{campaign.status.replaceAll("_", " ")}</p></div>
-        <button onClick={() => openPhase("SUBMISSION_OPEN")} className={`rounded-full px-5 py-2.5 text-sm font-bold ${campaign.status === "SUBMISSION_OPEN" ? "bg-rose-500 text-white" : "bg-rose-50 text-rose-700"}`}>Open submissions</button>
-        <button onClick={() => openPhase("VOTING_OPEN")} className={`rounded-full px-5 py-2.5 text-sm font-bold ${campaign.status === "VOTING_OPEN" ? "bg-violet-600 text-white" : "bg-violet-50 text-violet-700"}`}>Open voting</button>
-      </section>}
-      {message && <p role="status" className="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">{message}</p>}
 
       {(() => {
         const grouped = submissions.reduce((acc, sub) => {
@@ -82,6 +74,7 @@ export default function CommitteeReviewPage() {
                     <p className="font-semibold">{submission.title}</p>
                     <p className="mt-1 text-xs text-slate-500">{submission.frameId || "Legacy frame"} · {submission.voteCount} votes</p>
                     <button onClick={() => toggle(submission)} className={`mt-3 w-full rounded-full px-3 py-2 text-xs font-bold text-white ${submission.isSelected ? "bg-emerald-600" : "bg-slate-700"}`}>{submission.isSelected ? "Approved" : "Select approve"}</button>
+                    <button onClick={() => deleteSubmission(submission)} className="mt-2 w-full rounded-full bg-red-50 px-3 py-2 text-xs font-bold text-red-700">Delete submission</button>
                   </div>
                 </article>
               ))}

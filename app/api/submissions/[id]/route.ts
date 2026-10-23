@@ -31,7 +31,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     const { id } = await params;
     const submission = await prisma.submission.findUnique({ where: { id } });
     if (!submission) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    if (submission.userId !== user.id && !user.roles?.includes("ADMIN")) return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
+    if (submission.userId !== user.id && !user.roles?.includes("ADMIN") && !user.roles?.includes("COMMITTEE")) return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
     if (submission.deletedAt) return NextResponse.json({ error: "Already deleted" }, { status: 409 });
 
     await prisma.submission.update({ where: { id }, data: { deletedAt: new Date(), deletedBy: user.id } });
