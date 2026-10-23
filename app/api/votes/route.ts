@@ -24,13 +24,16 @@ export async function GET() {
       orderBy: { createdAt: "asc" },
       select: { id: true, imageKey: true, title: true, fileName: true, userId: true },
     });
+    const hasVoted = await prisma.vote.count({
+      where: { userId: user.id, campaignId: campaign.id, revokedAt: null },
+    }) > 0;
     const submissions = await Promise.all(rows.map(async (submission) => ({
       id: submission.id,
       title: submission.title || submission.fileName.replace(/\.[^.]+$/, ""),
       imageUrl: await getPresignedUrl(submission.imageKey),
       isOwn: submission.userId === user.id,
     })));
-    return NextResponse.json({ campaign: { id: campaign.id, name: campaign.name }, submissions });
+    return NextResponse.json({ campaign: { id: campaign.id, name: campaign.name }, submissions, hasVoted });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: error.message === "UNAUTHORIZED" ? 401 : 500 });
   }
@@ -53,10 +56,14 @@ export async function POST(request: Request) {
     });
     if (valid !== submissionIds.length) return NextResponse.json({ error: "Only other users' selected finalists can be voted" }, { status: 400 });
 
-    await prisma.$transaction(async (tx: any) => {
-      await tx.vote.deleteMany({ where: { userId: user.id, campaignId: campaign.id } });
+    // One ballot per user per campaign. Checked inside the transaction so parallel POSTs can't both pass.
+    const alreadyVoted = await prisma.$transaction(async (tx: any) => {
+      const existing = await tx.vote.count({ where: { userId: user.id, campaignId: campaign.id, revokedAt: null } });
+      if (existing > 0) return true;
       await tx.vote.createMany({ data: body.votes.map((vote) => ({ ...vote, userId: user.id, campaignId: campaign.id })) });
+      return false;
     });
+    if (alreadyVoted) return NextResponse.json({ error: "You have already voted" }, { status: 409 });
     return NextResponse.json({ ok: true });
   } catch (error: any) {
     return NextResponse.json({ error: error.name === "ZodError" ? "Invalid ballot" : error.message }, { status: error.message === "UNAUTHORIZED" ? 401 : 400 });

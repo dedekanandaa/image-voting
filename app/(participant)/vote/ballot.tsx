@@ -24,9 +24,13 @@ export function Ballot() {
     fetch("/api/votes").then(async (response) => {
       if (!response.ok) throw new Error((await response.json()).error || "Unable to load ballot");
       return response.json();
-    }).then((data: { campaign: Campaign | null; submissions: Submission[] }) => {
+    }).then((data: { campaign: Campaign | null; submissions: Submission[]; hasVoted?: boolean }) => {
       setCampaign(data.campaign);
       setSubmissions(data.submissions);
+      if (data.hasVoted) {
+        setSubmitted(true);
+        setMessage("You have already voted.");
+      }
     }).catch((error) => setMessage(error.message)).finally(() => setLoading(false));
   }, []);
 
