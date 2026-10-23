@@ -1,8 +1,8 @@
-import { timingSafeEqual } from "crypto";
 import NextAuth, { type DefaultSession } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import Keycloak from "next-auth/providers/keycloak";
 import { prisma } from "./prisma";
+import { verifyPassword } from "./password";
 
 type Role = "USER" | "COMMITTEE" | "ADMIN";
 const APP_ROLES: readonly Role[] = ["USER", "COMMITTEE", "ADMIN"];
@@ -26,12 +26,6 @@ declare module "next-auth" {
   }
 }
 
-function tokenMatches(given: string, expected: string) {
-  const a = Buffer.from(given);
-  const b = Buffer.from(expected);
-  return a.length === b.length && timingSafeEqual(a, b);
-}
-
 export const { handlers, auth, signIn, signOut } = NextAuth({
   session: { strategy: "jwt" },
   providers: [
@@ -40,32 +34,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       clientSecret: process.env.KEYCLOAK_CLIENT_SECRET!,
       issuer: process.env.KEYCLOAK_ISSUER!,
     }),
-    // Guest link: /guest?token=GUEST_LINK_TOKEN. Identity is bound to the httpOnly
-    // guest_device_id cookie (set by /api/auth/guest), so logout + reopen gets the same User.
+    // Guest accounts created via /api/auth/guest. Login by email + password only.
     Credentials({
       id: "guest",
-      credentials: { token: {} },
-      async authorize(credentials, request) {
-        const expected = process.env.GUEST_LINK_TOKEN;
-        const given = String(credentials?.token ?? "");
-        if (!expected || !given || !tokenMatches(given, expected)) return null;
+      name: "Guest",
+      credentials: { email: {}, password: {} },
+      async authorize(credentials) {
+        const email = String(credentials?.email ?? "").trim().toLowerCase();
+        const password = String(credentials?.password ?? "");
+        if (!email || !password) return null;
 
-        const cookie = request?.headers.get("cookie") ?? "";
-        const deviceId = cookie.match(/(?:^|;\s*)guest_device_id=([0-9a-f-]{36})/i)?.[1];
-        if (!deviceId) return null;
+        const user = await prisma.user.findUnique({ where: { email } });
+        if (!user?.passwordHash || !user?.keycloakId?.startsWith("guest:")) return null;
+        if (!(await verifyPassword(password, user.passwordHash))) return null;
 
-        const keycloakId = `guest:${deviceId}`;
-        const user = await prisma.user.upsert({
-          where: { keycloakId },
-          update: {},
-          create: {
-            keycloakId,
-            email: `${keycloakId}@guest.local`,
-            displayName: "Guest",
-            roles: ["USER"],
-          },
-        });
-        return { id: user.id, name: user.displayName, email: user.email, keycloakId };
+        return { id: user.id, name: user.displayName, email: user.email, keycloakId: user.keycloakId };
       },
     }),
   ],

@@ -46,6 +46,7 @@ model User {
   keycloakId String @unique
   email String @unique
   displayName String?
+  passwordHash String? // guest accounts only; Keycloak users have null
   roles Role[] @default([USER])
   submissions Submission[]
   votes Vote[]
