@@ -18,7 +18,7 @@ export default async function SubmitPage() {
   const rows = campaign ? await prisma.submission.findMany({
     where: { userId: session.user.id, campaignId: campaign.id, deletedAt: null },
     orderBy: { createdAt: "desc" },
-    select: { id: true, imageKey: true, frameId: true, createdAt: true, isSelected: true },
+    select: { id: true, imageKey: true, frameId: true, createdAt: true, isSelected: true, title: true },
   }) : [];
   const submissions = await Promise.all(rows.map(async ({ imageKey, ...row }) => ({
     ...row,

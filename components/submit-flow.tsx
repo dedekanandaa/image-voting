@@ -10,6 +10,7 @@ type Submission = {
   frameId: string | null;
   createdAt: string;
   isSelected: boolean;
+  title: string | null;
 };
 
 type Step = "welcome" | "pick" | "edit" | "preview" | "uploading" | "done";
@@ -53,6 +54,7 @@ export function SubmitFlow({
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [preview, setPreview] = useState<{ blob: Blob; url: string } | null>(null);
   const [submissionTitle, setSubmissionTitle] = useState("");
+  const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
   const [error, setError] = useState("");
   const [titleError, setTitleError] = useState("");
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -103,6 +105,15 @@ export function SubmitFlow({
     image.src = FRAMES.find((item) => item.id === frameId)!.src;
     image.decode().then(() => setFrame(image)).catch(() => setError("This frame could not be loaded."));
   }, [frameId]);
+
+  useEffect(() => {
+    if (!selectedSubmission) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSelectedSubmission(null);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [selectedSubmission]);
 
   async function choosePhoto(file?: File) {
     setError("");
@@ -197,10 +208,22 @@ export function SubmitFlow({
       {submissions.length ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
           {submissions.map((submission) => (
-            <article key={submission.id} className="overflow-hidden rounded-2xl bg-white shadow-sm">
-              <img src={submission.imageUrl} alt={`Submission by ${name}`} className="aspect-[3/4] w-full object-cover" />
-              <p className="px-3 py-2 text-xs font-semibold text-slate-500">{submission.isSelected ? "Selected finalist" : new Date(submission.createdAt).toLocaleDateString()}</p>
-            </article>
+            <button
+              key={submission.id}
+              onClick={() => setSelectedSubmission(submission)}
+              className="group overflow-hidden rounded-2xl bg-white shadow-sm hover:shadow-lg transition-shadow text-left"
+            >
+              <div className="relative">
+                <img src={submission.imageUrl} alt={submission.title || `Submission by ${name}`} className="aspect-[3/4] w-full object-cover group-hover:brightness-90 transition-all" />
+                <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                  <span className="text-white text-2xl opacity-0 group-hover:opacity-100 transition-opacity">👁️</span>
+                </div>
+              </div>
+              <div className="px-3 py-2 space-y-1">
+                {submission.title && <p className="text-xs font-semibold text-slate-900 line-clamp-2">{submission.title}</p>}
+                <p className="text-xs text-slate-500">{submission.isSelected ? "Approved" : new Date(submission.createdAt).toLocaleDateString()}</p>
+              </div>
+            </button>
           ))}
         </div>
       ) : <div className="rounded-2xl border border-dashed border-rose-200 bg-white/60 p-8 text-center text-sm text-slate-500">Your submitted photos will appear here.</div>}
@@ -356,6 +379,20 @@ export function SubmitFlow({
       )}
 
       {step === "done" && gallery}
+
+      {selectedSubmission && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="submission-detail-title">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedSubmission(null)} />
+          <div className="relative w-full max-w-md overflow-hidden rounded-[2rem] bg-white shadow-2xl motion-safe:animate-pop">
+            <img src={selectedSubmission.imageUrl} alt={selectedSubmission.title || `Submission by ${name}`} className="aspect-[3/4] max-h-[70vh] w-full object-contain bg-slate-100" />
+            <div className="space-y-1 p-5 text-center">
+              <h2 id="submission-detail-title" className="font-serif text-2xl font-semibold text-slate-900">{selectedSubmission.title || "Untitled"}</h2>
+              <p className="text-xs text-slate-500">{selectedSubmission.isSelected ? "Approved" : new Date(selectedSubmission.createdAt).toLocaleDateString()}</p>
+              <button onClick={() => setSelectedSubmission(null)} className="mt-4 w-full rounded-full bg-rose-500 px-5 py-3 font-bold text-white shadow-lg shadow-rose-200 transition hover:bg-rose-600">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

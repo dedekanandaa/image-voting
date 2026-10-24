@@ -130,24 +130,37 @@ export function Ballot() {
       </div>
 
       <div className={`mt-6 ${viewMode === "grid" ? "grid grid-cols-2 gap-3 sm:grid-cols-3 lg:gap-5" : "space-y-3 sm:space-y-4"}`}>
-        {submissions.map((submission, index) => (
-          <button
-            key={submission.id}
-            type="button"
-            onClick={() => setPreviewIndex(index)}
-            aria-label={`Preview finalist ${index + 1}${selected.has(submission.id) ? ", selected" : ""}`}
-            className={`group flex w-full overflow-hidden bg-white text-left shadow-sm transition active:scale-[0.98] ${viewMode === "grid" ? "flex-col rounded-2xl" : "items-center gap-4 rounded-2xl p-2 pr-4"} ${selected.has(submission.id) ? "ring-2 ring-rose-400" : ""}`}
-          >
-            <div className={`relative shrink-0 ${viewMode === "grid" ? "" : "w-24 overflow-hidden rounded-xl sm:w-32"}`}>
-              <img src={submission.imageUrl} alt="" className={`aspect-[3/4] w-full object-cover ${viewMode === "grid" ? "" : "rounded-xl"}`} />
-              {selected.has(submission.id) && <span className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-rose-500 text-sm font-bold text-white shadow">✓</span>}
-            </div>
-            <div className={`min-w-0 flex-1 ${viewMode === "grid" ? "p-3" : ""}`}>
-              <h2 className="truncate font-serif text-base font-semibold sm:text-lg">{submission.title}</h2>
-              <p className={`text-xs font-semibold ${submission.isOwn ? "text-slate-400" : selected.has(submission.id) ? "text-rose-600" : "text-slate-400"}`}>{submission.isOwn ? "Your photo" : selected.has(submission.id) ? "Selected" : "Tap to preview"}</p>
-            </div>
-          </button>
-        ))}
+        {submissions.map((submission, index) => {
+          const isSelected = selected.has(submission.id);
+          return (
+            <article key={submission.id} className={`overflow-hidden bg-white shadow-sm transition ${viewMode === "grid" ? "rounded-2xl" : "flex items-center rounded-2xl"} ${isSelected ? "ring-2 ring-rose-400" : ""}`}>
+              <button
+                type="button"
+                onClick={() => setPreviewIndex(index)}
+                aria-label={`Preview finalist ${index + 1}${isSelected ? ", selected" : ""}`}
+                className={`group flex min-w-0 flex-1 text-left active:scale-[0.98] ${viewMode === "grid" ? "flex-col" : "items-center gap-4 p-2"}`}
+              >
+                <div className={`relative shrink-0 ${viewMode === "grid" ? "w-full" : "w-24 overflow-hidden rounded-xl sm:w-32"}`}>
+                  <img src={submission.imageUrl} alt="" className={`aspect-[3/4] w-full object-cover transition group-hover:brightness-90 ${viewMode === "grid" ? "" : "rounded-xl"}`} />
+                  {isSelected && <span className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-rose-500 text-sm font-bold text-white shadow">✓</span>}
+                </div>
+                <div className={`min-w-0 flex-1 ${viewMode === "grid" ? "p-3" : "py-1"}`}>
+                  <h2 className="truncate font-serif text-base font-semibold sm:text-lg">{submission.title}</h2>
+                  <p className={`text-xs font-semibold ${submission.isOwn ? "text-slate-400" : isSelected ? "text-rose-600" : "text-slate-400"}`}>{submission.isOwn ? "Your photo" : isSelected ? "Selected" : "Tap to preview"}</p>
+                </div>
+              </button>
+              <button
+                type="button"
+                disabled={submission.isOwn || (!isSelected && selected.size >= MAX_SELECTIONS)}
+                aria-pressed={isSelected}
+                onClick={() => toggleSelection(submission.id)}
+                className={`shrink-0 rounded-full px-3 py-2 text-xs font-bold transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 ${viewMode === "grid" ? "mx-3 mb-3 w-[calc(100%-1.5rem)]" : "mr-3"} ${submission.isOwn ? "bg-slate-100 text-slate-500" : isSelected ? "bg-slate-100 text-slate-700 hover:bg-slate-200" : "bg-rose-500 text-white shadow-sm hover:bg-rose-600"}`}
+              >
+                {submission.isOwn ? "Your photo" : isSelected ? "Deselect" : selected.size >= MAX_SELECTIONS ? "Limit reached" : "Select"}
+              </button>
+            </article>
+          );
+        })}
       </div>
 
       {previewIndex !== null && (
@@ -324,40 +337,58 @@ function Preview({
     return () => { emblaApi.off("select", onSelect); };
   }, [emblaApi]);
 
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+      if (event.key === "ArrowLeft") emblaApi?.scrollPrev();
+      if (event.key === "ArrowRight") emblaApi?.scrollNext();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [emblaApi, onClose]);
+
   const submission = submissions[index];
   const isSelected = selected.has(submission.id);
   const isOwn = submission.isOwn;
   const full = !isSelected && selected.size >= maxSelections;
 
   return (
-    <div className="fixed inset-0 z-40 flex flex-col bg-black/95">
-      <div className="flex items-center justify-between px-4 py-3 text-sm font-bold text-white/80">
-        <span className="min-w-0 truncate pr-3">{submissions[index].title}</span>
-        <span className="shrink-0">{index + 1} of {submissions.length}</span>
-        <button onClick={onClose} aria-label="Close preview" className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-lg text-white active:scale-95">✕</button>
-      </div>
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/80 p-3 backdrop-blur-sm sm:p-6" role="dialog" aria-modal="true" aria-labelledby="preview-title">
+      <div className="flex h-[min(88vh,800px)] w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-slate-950 shadow-2xl">
+        <header className="flex shrink-0 items-center gap-3 border-b border-white/10 px-4 py-3 text-white sm:px-6">
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-rose-300">Finalist preview</p>
+            <h2 id="preview-title" className="truncate text-sm font-bold sm:text-base">{submission.title}</h2>
+          </div>
+          <span className="shrink-0 text-xs font-semibold text-white/60">{index + 1} / {submissions.length}</span>
+          <button onClick={onClose} aria-label="Close preview" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-lg text-white transition hover:bg-white/20 active:scale-95">✕</button>
+        </header>
 
-      <div ref={emblaRef} className="flex-1 overflow-hidden">
-        <div className="flex h-full">
-          {submissions.map((item, i) => (
-            <div key={item.id} className="flex h-full min-w-0 flex-[0_0_100%] items-center justify-center p-4 sm:p-8">
-              <img src={item.imageUrl} alt={`Finalist ${i + 1}`} className="max-h-full w-full max-w-sm rounded-2xl object-cover aspect-[3/4]" />
-            </div>
-          ))}
+        <div ref={emblaRef} className="min-h-0 flex-1 overflow-hidden">
+          <div className="flex h-full">
+            {submissions.map((item, i) => (
+              <div key={item.id} className="flex h-full min-w-0 flex-[0_0_100%] items-center justify-center p-4 sm:p-8">
+                <img src={item.imageUrl} alt={item.title || `Finalist ${i + 1}`} className="max-h-full max-w-full rounded-2xl object-contain shadow-xl" />
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
 
-      <div className="space-y-3 border-t border-white/10 bg-black/60 p-4 backdrop-blur sm:space-y-4 sm:p-6">
-        {isOwn && <p className="text-center text-sm font-bold text-white/70">Your photo • Can't vote</p>}
-        {isSelected && !isOwn && <p className="text-center text-sm font-bold text-rose-400">✓ Selected</p>}
-        <div className="flex gap-2 sm:gap-3">
-          <button onClick={() => emblaApi?.scrollPrev()} disabled={index === 0} className="flex-1 rounded-full bg-white/15 px-3 py-3 font-bold text-white transition disabled:opacity-30 active:scale-95">← Prev</button>
-          <button onClick={() => onToggle(submission.id)} disabled={isOwn || full} className={`flex-1 rounded-full px-3 py-3 font-bold text-white transition disabled:opacity-50 active:scale-95 ${isOwn ? "bg-slate-600" : isSelected ? "bg-slate-700" : "bg-rose-500 shadow-lg shadow-rose-500/50"}`}>
-            {isOwn ? "Your photo" : isSelected ? "✓ Deselect" : full ? "Limit reached" : "Select"}
-          </button>
-          <button onClick={() => emblaApi?.scrollNext()} disabled={index === submissions.length - 1} className="flex-1 rounded-full bg-white/15 px-3 py-3 font-bold text-white transition disabled:opacity-30 active:scale-95">Next →</button>
-        </div>
-        {full && <p className="text-center text-xs font-semibold text-white/70 sm:text-sm">Deselect one first ({selected.size}/{maxSelections} selected)</p>}
+        <footer className="shrink-0 space-y-3 border-t border-white/10 bg-black/30 p-4 backdrop-blur sm:p-6">
+          <div className="flex items-center justify-between gap-3 text-xs font-semibold text-white/70">
+            <span>{selected.size} of {maxSelections} selected</span>
+            <span>{isOwn ? "Your photo · Can't vote" : isSelected ? "✓ Added to your ballot" : "Choose this finalist"}</span>
+          </div>
+          <div className="flex gap-2 sm:gap-3">
+            <button onClick={() => emblaApi?.scrollPrev()} disabled={index === 0} className="rounded-full bg-white/10 px-4 py-3 font-bold text-white transition hover:bg-white/20 disabled:opacity-30 active:scale-95">← <span className="hidden sm:inline">Previous</span></button>
+            <button onClick={() => onToggle(submission.id)} disabled={isOwn || full} className={`min-w-0 flex-1 rounded-full px-3 py-3 font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-50 active:scale-95 ${isOwn ? "bg-slate-700" : isSelected ? "bg-white/15 hover:bg-white/25" : "bg-rose-500 shadow-lg shadow-rose-500/30 hover:bg-rose-600"}`}>
+              {isOwn ? "Your photo" : isSelected ? "✓ Deselect" : full ? "Limit reached" : "Select this photo"}
+            </button>
+            <button onClick={() => emblaApi?.scrollNext()} disabled={index === submissions.length - 1} className="rounded-full bg-white/10 px-4 py-3 font-bold text-white transition hover:bg-white/20 disabled:opacity-30 active:scale-95"><span className="hidden sm:inline">Next </span>→</button>
+          </div>
+          {full && <p className="text-center text-xs font-semibold text-amber-200">Deselect one photo first to choose another.</p>}
+          <p className="text-center text-[11px] text-white/40">Swipe or use ← → to browse · Esc to close</p>
+        </footer>
       </div>
     </div>
   );
