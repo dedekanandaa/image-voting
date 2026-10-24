@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350">
-  <path fill="#7c3aed" fill-rule="evenodd" d="M0 0h1080v1350H0zM45 45v1260h990V45z"/>
-  <path fill="#fbbf24" d="M0 0h180L0 180zM1080 0H900l180 180zM0 1350v-180l180 180zM1080 1350v-180l-180 180z"/>
-  <circle cx="60" cy="300" r="18" fill="#22d3ee"/><circle cx="1020" cy="450" r="18" fill="#fb7185"/>
-  <circle cx="54" cy="720" r="13" fill="#fb7185"/><circle cx="1026" cy="850" r="13" fill="#22d3ee"/>
-  <path stroke="#fbbf24" stroke-width="14" d="m50 520 48 48M1030 650l-48 48M58 1040l44-44M1022 1080l-44-44"/>
-</svg>

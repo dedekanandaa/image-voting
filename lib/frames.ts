@@ -5,10 +5,13 @@ export const FRAMES = [
   // { id: "classic", name: "Classic", src: "/frames/classic.svg" },
   // { id: "polaroid", name: "Polaroid", src: "/frames/polaroid.svg" },
   // { id: "party", name: "Party", src: "/frames/party.svg" },
-  { id: "party", name: "Party party", src: "/frames/Frame 1.png" },
-  { id: "ready", name: "Pernah ga ready?", src: "/frames/Frame 2.png" },
-  { id: "retro", name: "Retro", src: "/frames/Frame 3.png" },
-  { id: "pemecut", name: "Pengendali eiay", src: "/frames/Frame 5.png" },
+  { id: "party-1", name: "Lesgow🎉", src: "/frames/Colorful Let’s Party Photo Frame (1).webp" },
+  { id: "party-2", name: "Partieh🥳", src: "/frames/Kawaii Let’s Party Photo Frame (1).webp" },
+  { id: "nature", name: "Alam🍃", src: "/frames/Good Vibes Nature Frame (1).webp" },
+  { id: "sport", name: "Sipaling sehat💪", src: "/frames/Vibrant Sports Collage Frame.webp" },
+  { id: "japan", name: "Nihonjin desuka?🇯🇵", src: "/frames/Japanese Festival Sakura Frame.webp" },
+  { id: "console", name: "Console👾", src: "/frames/Neon Terminal Party Frame.webp" },
+  { id: "pemecut", name: "Pengendali eiay🤖", src: "/frames/Frame 5.png" },
 ] as const;
 
 export function isFrameId(value: string): value is (typeof FRAMES)[number]["id"] {
